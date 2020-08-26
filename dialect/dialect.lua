@@ -32,7 +32,7 @@ dialect.text =
     render  = "",
     cache   = {},
 
-    font    = love.graphics.newFont(14),
+    font    = nil,
     index   = 1,
     current = 1
 }
@@ -52,6 +52,7 @@ dialect.speeds =
 }
 
 dialect.CONST_BOX_HEIGHT = 136
+dialect.CONST_NO_SPEAKER = ""
 
 dialect.position =
 {
@@ -115,7 +116,7 @@ local function getConfig(speaker, config)
 
     if not config.profile then
         -- config doesn't exist--insert nil
-        table.insert(dialect.text.avatars, nil)
+        table.insert(dialect.text.avatars, dialect.CONST_NO_SPEAKER)
         return
     end
 
@@ -133,7 +134,7 @@ local function wordWrap(text)
     local MAX_LINES = math.floor(dialect.CONST_BOX_HEIGHT / dialect.text.font:getHeight())
 
     if dialect.text.avatar then
-        limit = limit - dialect.text.avatar:getWidth()
+        limit = limit - 128
     end
 
     limit = limit - dialect.CONST_PADDING
@@ -169,6 +170,10 @@ local function wordWrap(text)
     table.insert(ret, line)
 
     return table.concat(ret)
+end
+
+function dialect.updateIcon()
+    dialect.text.avatar = dialect.text.avatars[dialect.text.current]
 end
 
 function dialect.updateSpeaker()
@@ -227,10 +232,10 @@ function dialect.speak(speaker, text, config)
     local config = config or {}
     getConfig(speaker, config)
 
-    dialect.text.avatar = dialect.text.avatars[1]
+    dialect.updateIcon()
 
     if type(text) == "string" then
-        table.insert(dialect.text.speakers, speaker)
+        table.insert(dialect.text.speakers, speaker or "")
 
         local item = wordWrap(text)
         if dialect.messages[text] then
@@ -256,11 +261,11 @@ end
 
 local punctuation = {".", "?", "!"}
 local function isPunctuation(char)
-    for i = 1, #punctuation do
-        if char == punctuation[i] then
-            return true
-        end
-    end
+    -- for i = 1, #punctuation do
+    --     if char == punctuation[i] then
+    --         return true
+    --     end
+    -- end
     return false
 end
 
@@ -349,7 +354,9 @@ function dialect.draw()
     love.graphics.setColor(1, 1, 1, 1)
 
     local add = 0
-    if dialect.text.avatar then
+
+    -- speaker cannot be an empty string -- hacky solution
+    if dialect.text.avatar ~= dialect.CONST_NO_SPEAKER then
         add = dialect.text.avatar:getWidth() + dialect.CONST_PADDING
         love.graphics.draw(dialect.text.avatar, textBox[1] + dialect.CONST_PADDING, textBox[2] + dialect.CONST_PADDING)
     end
@@ -361,7 +368,8 @@ function dialect.draw()
         love.graphics.print(">>", textBox[1] + textBox[3] - (dialect.text.font:getWidth(">>") + dialect.CONST_PADDING) + math.cos(love.timer.getTime() * 4) * 4, textBox[2] + (textBox[4] - dialect.text.font:getHeight()))
     end
 
-    if not dialect.text.speaker then
+    -- speaker cannot be an empty string
+    if dialect.text.speaker == dialect.CONST_NO_SPEAKER then
         return
     end
 
@@ -371,7 +379,7 @@ function dialect.draw()
     love.graphics.setColor(dialect.colors.title)
 
     local titleBox = dialect.position.title
-    love.graphics.print(dialect.text.speaker, titleBox[1] + (titleBox[3] - dialect.text.font:getWidth(dialect.text.speaker)) / 2, titleBox[2] + (titleBox[4] - dialect.text.font:getHeight()) / 2 + dialect.CONST_PADDING / 2)
+    love.graphics.print(dialect.text.speaker, titleBox[1] + (titleBox[3] - dialect.text.font:getWidth(dialect.text.speaker)) / 2, titleBox[2] + (titleBox[4] - dialect.text.font:getHeight()) / 2)
 end
 
 function dialect.advanceText()
@@ -380,17 +388,27 @@ function dialect.advanceText()
 
     if dialect.text.index >= #dialect.text.cache[dialect.text.current] then
         dialect.text.current = dialect.text.current + 1
-        dialect.updateSpeaker()
         dialect.text.index = 1
+        dialect.updateSpeaker()
     end
 
     if dialect.text.cache[dialect.text.current] then
         dialect.text.render = ""
-        dialect.text.avatar = dialect.text.avatars[dialect.text.current]
+        dialect.updateIcon()
     end
 
     dialect.timers.time = 0
     dialect.flags.waitForInput = false
+end
+
+function dialect.keyreleased(button)
+    if not dialect.flags.waitForInput then
+        return
+    end
+
+    if button == dialect.buttons.continue.key then
+        dialect.advanceText()
+    end
 end
 
 function dialect.gamepadreleased(button)
@@ -404,5 +422,6 @@ function dialect.gamepadreleased(button)
 end
 
 dialect.setDelay("normal")
+dialect.setFont(love.graphics.newFont(14))
 
 return dialect
