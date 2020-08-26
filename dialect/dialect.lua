@@ -33,6 +33,7 @@ dialect.text =
     cache   = {},
 
     font    = nil,
+
     index   = 1,
     current = 1
 }
@@ -102,33 +103,6 @@ end
 
 local utf8 = require("utf8")
 
-local function getConfig(speaker, config)
-    local title = speaker
-
-    if type(title) == "table" then
-        dialect.colors.title = title.color
-        dialect.text.speaker = title.speaker or ""
-    else -- just a string
-        dialect.text.speaker = title
-    end
-
-    generateTitleBox()
-
-    if not config.profile then
-        -- config doesn't exist--insert nil
-        table.insert(dialect.text.avatars, dialect.CONST_NO_SPEAKER)
-        return
-    end
-
-    -- use default image if profile isn't nil, but doesn't exist
-    local item = dialect.images.default
-    if dialect.images[config.profile] then
-        -- use specified image if profile isn't nil and exists
-        item = dialect.images[config.profile]
-    end
-    table.insert(dialect.text.avatars, item)
-end
-
 local function wordWrap(text)
     local limit = dialect.position.text[3]
     local MAX_LINES = math.floor(dialect.CONST_BOX_HEIGHT / dialect.text.font:getHeight())
@@ -170,6 +144,22 @@ local function wordWrap(text)
     table.insert(ret, line)
 
     return table.concat(ret)
+end
+
+local function getProfileIcon(config)
+    if not config.profile then
+        -- config doesn't exist--insert nil
+        table.insert(dialect.text.avatars, dialect.CONST_NO_SPEAKER)
+        return
+    end
+
+    -- use default image if profile isn't nil, but doesn't exist
+    local item = dialect.images.default
+    if dialect.images[config.profile] then
+        -- use specified image if profile isn't nil and exists
+        item = dialect.images[config.profile]
+    end
+    table.insert(dialect.text.avatars, item)
 end
 
 function dialect.updateIcon()
@@ -230,10 +220,13 @@ end
 
 function dialect.speak(speaker, text, config)
     local config = config or {}
-    getConfig(speaker, config)
 
     dialect.updateIcon()
 
+    -- this is all hacky, kinda
+    -- the cache/speakers/profile arrays should be the same length
+    -- so it doesn't error
+    -- there's likely a way better way to handle it, but meh
     if type(text) == "string" then
         table.insert(dialect.text.speakers, speaker or "")
 
@@ -243,11 +236,13 @@ function dialect.speak(speaker, text, config)
         end
 
         table.insert(dialect.text.cache, item)
+        getProfileIcon(config)
     else
         for i = 1, #text do
             table.insert(dialect.text.cache, wordWrap(text[i]))
+            table.insert(dialect.text.speakers, speaker)
+            getProfileIcon(config)
         end
-        table.insert(dialect.text.speakers, speaker)
     end
 
     dialect.flags.running = true
@@ -300,10 +295,15 @@ function dialect.update(dt)
                 return
             end
 
-            if dialect.timers.time < dialect.timers.max then
+            if dialect.timers.time <= dialect.timers.max then
                 dialect.timers.time = dialect.timers.time + dt
             else
                 local char = currentString:sub(dialect.text.index, dialect.text.index)
+
+                local preChar = char
+                if char == "␣" then
+                    char = " "
+                end
 
                 dialect.text.render = dialect.text.render .. char
 
@@ -315,7 +315,7 @@ function dialect.update(dt)
                     dialect.audio.writeSound:play()
                 end
 
-                if isPunctuation(char) then
+                if preChar == "␣" then
                     dialect.flags.paused = true
                 elseif dialect.lines > 0 and (dialect.lines % dialect.CONST_MAX_LINES == 0) then
                     if char == "\n" then
@@ -365,7 +365,7 @@ function dialect.draw()
     love.graphics.print(dialect.text.render, textBox[1] + dialect.CONST_PADDING + add, textBox[2] + dialect.CONST_PADDING)
 
     if dialect.flags.waitForInput then
-        love.graphics.print(">>", textBox[1] + textBox[3] - (dialect.text.font:getWidth(">>") + dialect.CONST_PADDING) + math.cos(love.timer.getTime() * 4) * 4, textBox[2] + (textBox[4] - dialect.text.font:getHeight()))
+        love.graphics.print(">>", textBox[1] + textBox[3] - ((dialect.text.font:getWidth(">>") + dialect.CONST_PADDING * 2)) + math.cos(love.timer.getTime() * 4) * 4, textBox[2] + (textBox[4] - (dialect.text.font:getHeight() + dialect.CONST_PADDING)))
     end
 
     -- speaker cannot be an empty string
@@ -386,11 +386,15 @@ function dialect.advanceText()
     dialect.timers.pauseTime = 0
     dialect.flags.paused = false
 
+    local prevSpeaker = dialect.text.speaker
+
     if dialect.text.index >= #dialect.text.cache[dialect.text.current] then
         dialect.text.current = dialect.text.current + 1
         dialect.text.index = 1
         dialect.updateSpeaker()
     end
+
+    local newSpeaker = dialect.text.speaker
 
     if dialect.text.cache[dialect.text.current] then
         dialect.text.render = ""
@@ -399,6 +403,12 @@ function dialect.advanceText()
 
     dialect.timers.time = 0
     dialect.flags.waitForInput = false
+end
+
+function dialect.quickUpdate()
+    dialect.flags.paused = false
+    dialect.text.render = dialect.text.cache[dialect.text.current]:gsub("␣", " ")
+    dialect.text.index = #dialect.text.cache[dialect.text.current] + 1
 end
 
 function dialect.keyreleased(button)

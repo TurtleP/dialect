@@ -9,6 +9,7 @@ I initially started making this/reusing this from older projects where it was mu
   - Font
 - Auto-wrapping text
 - Speaker icons
+- Use text stored in a Lua (\*.lua) or Text (\*.txt) file
 
 ## To-Do
 - UTF-8 support

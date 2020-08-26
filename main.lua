@@ -8,10 +8,13 @@ function love.load()
     dialect.speak(nil, "although I don't want a narrator")
 
     -- Speak with a name and icon/profile
-    dialect.speak("Bender", "I'll make my own library.. with blackjack .. and hookers!", {profile = "bender"})
+    dialect.speak("Bender", "I'll make my own library.. with blackjack.. and hookers!", {profile = "bender"})
 
-    -- Speak with a name, icon/profile, but specific message from messages dir
-    dialect.speak("TurtleP", "text.lua", {profile = "turtle"})
+    -- Speak with a name, icon/profile, but multiple dialogs from the same profile
+    dialect.speak("Astronaut", {"Wait.. it's ALL Earth?", "Seriously?"}, {profile = "astronaut"})
+
+    -- Speak with a name, icon/profile, but specific message
+    dialect.speak("TurtleP", "navy_seals", {profile = "turtle"})
 
     love.graphics.setBackgroundColor(0.40, 0.40, 0.40)
 end
